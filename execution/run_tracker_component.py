@@ -17,7 +17,6 @@ if not os.path.exists(_FRONTEND_DIR):
 _HTML_CONTENT = """<!DOCTYPE html>
 <html>
 <head>
-<script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.3.0/dist/streamlit.js"></script>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;700&display=swap');
     body {
@@ -195,19 +194,35 @@ _HTML_CONTENT = """<!DOCTYPE html>
     <script>
         let pesoUtente = 70; // default
         
-        // Streamlit Component Initialization tramite CDN ufficiale
-        function onRender(event) {
-            const data = event.detail.args;
-            if (data && data.peso_utente) {
-                pesoUtente = data.peso_utente;
-            }
-            Streamlit.setFrameHeight(750);
+        // --- Streamlit Custom Component Native API ---
+        function sendMessageToStreamlitClient(type, data) {
+            const outData = Object.assign({
+                isStreamlitMessage: true,
+                type: type,
+            }, data);
+            window.parent.postMessage(outData, "*");
         }
-        
-        // La libreria CDN gestisce correttamente l'handshake e invia 'streamlit:componentReady'
-        Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
-        Streamlit.setComponentReady();
-        Streamlit.setFrameHeight(750);
+
+        function setFrameHeight(height) {
+            sendMessageToStreamlitClient("streamlit:setFrameHeight", { height: height });
+        }
+
+        window.addEventListener("message", function(event) {
+            if (event.data.type === "streamlit:render") {
+                const args = event.data.args;
+                if (args && args.peso_utente) {
+                    pesoUtente = args.peso_utente;
+                }
+                setFrameHeight(750);
+            }
+        });
+
+        // Esegui l'handshake solo quando il DOM è completamente pronto
+        window.addEventListener("load", function() {
+            sendMessageToStreamlitClient("streamlit:componentReady", { apiVersion: 1 });
+            setFrameHeight(750);
+        });
+        // ---------------------------------------------
 
         let isRunning = false;
         let watchId = null;
@@ -405,8 +420,8 @@ _HTML_CONTENT = """<!DOCTYPE html>
                 path: gpsPath
             };
             
-            // Invia i dati a Streamlit (Python) tramite la libreria CDN
-            Streamlit.setComponentValue(runData);
+            // Invia i dati a Streamlit (Python) tramite l'API nativa postMessage
+            sendMessageToStreamlitClient("streamlit:setComponentValue", { value: runData });
         }
 
     </script>
