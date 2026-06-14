@@ -24,6 +24,10 @@ if str(_EXEC_DIR) not in sys.path:
 import data_manager as dm
 import workout_generator as wg
 import coach_feedback as cf
+import streamlit.components.v1 as components
+import pydeck as pdk
+from run_tracker_component import render_run_tracker
+from timer_component import get_timer_html
 
 # =============================================================================
 # CONFIGURAZIONE PAGINA
@@ -42,131 +46,222 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* --- Font moderno --- */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    /* --- Font da video Dribbble --- */
+    @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
+    /* Sfondo scuro e testo chiaro per replicare il dark mode */
+    .stApp {
+        background-color: #0a0a0a;
+        color: #f0f0f0;
+    }
+    
+    html, body, [class*="st-"], [class*="css"], p, span, div {
+        font-family: 'Inter', sans-serif !important;
     }
 
-    /* --- Header principale --- */
+    h1, h2, h3, h1 *, h2 *, h3 * {
+        font-family: 'Anton', sans-serif !important;
+        text-transform: uppercase !important;
+        letter-spacing: 1px !important;
+    }
+
+    /* --- Header principale (Stile WORKOUT) --- */
     .main-header {
-        background: linear-gradient(135deg, #0f9b8e 0%, #0d7377 50%, #14532d 100%);
-        padding: 1.8rem 2rem;
-        border-radius: 16px;
-        margin-bottom: 1.5rem;
-        text-align: center;
-        box-shadow: 0 8px 32px rgba(15, 155, 142, 0.25);
+        padding: 1rem 0 2rem 0;
+        margin-bottom: 1rem;
     }
     .main-header h1 {
         color: #ffffff;
-        font-size: 2rem;
-        font-weight: 700;
+        font-size: 5.5rem;
+        font-weight: 400;
         margin: 0;
-        letter-spacing: -0.5px;
+        line-height: 0.9;
+        letter-spacing: 1px;
     }
-    .main-header p {
-        color: rgba(255,255,255,0.85);
-        font-size: 1rem;
-        margin: 0.3rem 0 0 0;
-        font-weight: 300;
+    .main-header .subtitle-container {
+        margin-top: 0.8rem;
+    }
+    .main-header .level {
+        font-size: 1.8rem;
+        font-weight: 600;
+        color: #ffffff;
+    }
+    .main-header .dropdown {
+        color: #7ef2d5;
+        font-size: 1.4rem;
+        vertical-align: middle;
+        margin-left: 5px;
+    }
+    .main-header .fitness-level {
+        font-size: 0.85rem;
+        color: #888;
+        letter-spacing: 1.5px;
+        margin-top: 0.2rem;
+        text-transform: uppercase;
+        font-weight: 500;
     }
 
-    /* --- Card per le opzioni di allenamento --- */
+    /* --- Card opzioni allenamento (Stile Black Card) --- */
     .workout-card {
-        background: linear-gradient(145deg, #1a1a2e 0%, #16213e 100%);
-        border: 1px solid rgba(15, 155, 142, 0.3);
-        border-radius: 14px;
-        padding: 1.4rem;
+        background-color: #111111;
+        border-radius: 24px;
+        padding: 1.2rem;
+        margin-bottom: 1.2rem;
+        color: #ffffff;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+        border: 1px solid #333;
+    }
+    .workout-card-header {
+        display: flex;
+        align-items: center;
         margin-bottom: 1rem;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .workout-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(15, 155, 142, 0.2);
+    .workout-card-header .icon {
+        background-color: #222222;
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin-right: 1rem;
     }
-    .workout-card h3 {
-        color: #0f9b8e;
-        font-size: 1.15rem;
+    .workout-card-header .title-area h3 {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0;
+        color: #ffffff;
+        text-transform: none;
+        letter-spacing: 0;
+        line-height: 1.2;
+    }
+    .workout-card-header .workouts-count {
+        font-size: 0.75rem;
+        color: #888;
         font-weight: 600;
-        margin-bottom: 0.8rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid rgba(15, 155, 142, 0.2);
+        text-transform: uppercase;
+        margin-top: 0.2rem;
     }
+    .workout-card-header .arrow {
+        margin-left: auto;
+        font-size: 1.5rem;
+        color: #7ef2d5;
+    }
+
     .workout-card .exercise-item {
-        color: #e0e0e0;
+        color: #d0d0d0;
         font-size: 0.95rem;
-        padding: 0.35rem 0;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #333;
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        font-weight: 500;
     }
     .workout-card .exercise-item:last-child {
         border-bottom: none;
     }
-    .exercise-name {
-        font-weight: 500;
-    }
     .exercise-volume {
-        color: #0f9b8e;
-        font-weight: 600;
-        font-family: 'Inter', monospace;
+        color: #111;
+        font-weight: 700;
+        background: #7ef2d5;
+        padding: 4px 10px;
+        border-radius: 8px;
+        font-size: 0.85rem;
     }
 
-    /* --- Card profilo --- */
-    .profile-card {
-        background: linear-gradient(145deg, #1a1a2e 0%, #16213e 100%);
-        border: 1px solid rgba(15, 155, 142, 0.2);
-        border-radius: 14px;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
+    /* --- Stile Pulsanti Moderni --- */
+    .stButton > button, .stButton > button * {
+        font-family: 'Anton', sans-serif !important;
+        letter-spacing: 1px !important;
+        text-transform: uppercase !important;
+        font-size: 1.2rem !important;
     }
-    .profile-card h3 {
-        color: #0f9b8e;
-        margin-bottom: 0.8rem;
+    /* Primary (Avvia Allenamento) - Solido Verde Menta */
+    .stButton > button[kind="primary"] {
+        background-color: #7ef2d5 !important;
+        color: #000000 !important;
+        border-radius: 12px !important;
+        border: none !important;
+        padding: 0.6rem 1rem !important;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(126, 242, 213, 0.2);
     }
-    .profile-stat {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.4rem 0;
-        border-bottom: 1px solid rgba(255,255,255,0.05);
-        color: #e0e0e0;
+    .stButton > button[kind="primary"]:hover {
+        background-color: #5bd4b5 !important;
+        transform: translateY(-2px);
     }
-    .profile-stat .label {
-        color: #9ca3af;
-        font-size: 0.9rem;
+    
+    /* Secondary (Segna come completato) - Outlined Suro / Trasparente */
+    .stButton > button[kind="secondary"] {
+        background-color: transparent !important;
+        color: #7ef2d5 !important;
+        border-radius: 12px !important;
+        border: 2px solid #333 !important;
+        padding: 0.6rem 1rem !important;
+        transition: all 0.3s ease;
     }
-    .profile-stat .value {
-        font-weight: 600;
-        color: #ffffff;
+    .stButton > button[kind="secondary"]:hover {
+        border-color: #7ef2d5 !important;
+        background-color: rgba(126, 242, 213, 0.1) !important;
+        transform: translateY(-2px);
+    }
+
+    /* --- Input e form dark --- */
+    .stTextInput>div>div>input, .stNumberInput>div>div>input, .stSelectbox>div>div>div {
+        background-color: #1a1a1a !important;
+        color: #ffffff !important;
+        border-radius: 12px !important;
+        border: 1px solid #333 !important;
+    }
+    
+    /* --- Tabs --- */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #222222 !important;
+        border-radius: 20px !important;
+        border: 1px solid #333 !important;
+        padding: 0.5rem 1.5rem !important;
+        color: #ffffff !important;
+        font-weight: 500 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 1rem !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #7ef2d5 !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        border-color: #7ef2d5 !important;
     }
 
     /* --- Feedback del coach --- */
     .coach-feedback {
-        background: linear-gradient(145deg, #1a1a2e 0%, #0d3b2e 100%);
-        border: 1px solid rgba(15, 155, 142, 0.4);
-        border-radius: 14px;
+        background: #1a1a1a;
+        border-left: 4px solid #7ef2d5;
+        border-radius: 12px;
         padding: 1.5rem;
         margin: 1rem 0;
-        font-size: 1rem;
+        font-size: 1.05rem;
         line-height: 1.6;
-        color: #e0e0e0;
     }
     .coach-feedback strong {
-        color: #0f9b8e;
+        color: #7ef2d5;
     }
 
-    /* --- Migliora aspetto dei tab --- */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: 500;
+    /* --- Metriche --- */
+    [data-testid="stMetricValue"] {
+        font-family: 'Anton', sans-serif;
+        color: #7ef2d5;
+        font-size: 2.5rem;
     }
 
-    /* --- Nascondi footer streamlit --- */
+    /* Nascondi header standard */
+    header {visibility: hidden;}
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
 </style>
@@ -179,8 +274,11 @@ st.markdown("""
 
 st.markdown("""
 <div class="main-header">
-    <h1>🏋️ Coach Fitness Dinamico</h1>
-    <p>Il tuo personal trainer AI - Allenamenti su misura, progressi reali</p>
+    <h1 style="color: #7ef2d5;">TRAINING HUB</h1>
+    <div class="subtitle-container">
+        <span class="level">Coach AI </span><span class="dropdown">▼</span>
+        <div class="fitness-level">IL TUO PERSONAL TRAINER</div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -189,10 +287,11 @@ st.markdown("""
 # TAB PRINCIPALI
 # =============================================================================
 
-tab1, tab2, tab3 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "👤 Il Tuo Profilo",
     "🏋️ Allenamento di Oggi",
     "📊 Diario & Progressi",
+    "🏃‍♂️ Corsa Live",
 ])
 
 
@@ -387,65 +486,110 @@ with tab2:
             tempo_sel = st.session_state.get("tempo_selezionato", 30)
             energia_sel_val = st.session_state.get("energia_selezionata", "Media")
 
-            st.markdown("---")
-            st.markdown(f"**Allenamento per {tempo_sel} minuti - Energia: {energia_sel_val}**")
+            active_timer = st.session_state.get("active_timer")
+            
+            if active_timer:
+                lettera = active_timer
+                opt = opzioni[lettera]
+                
+                col_title, col_close = st.columns([3, 1])
+                with col_title:
+                    st.markdown(f"### ⏱️ {opt['nome']}")
+                with col_close:
+                    if st.button("CHIUDI TIMER", use_container_width=True):
+                        st.session_state["active_timer"] = None
+                        st.rerun()
 
-            col_a, col_b, col_c = st.columns(3)
+                # Render HTML component
+                html_code = get_timer_html(opt["esercizi"], energia_sel_val)
+                components.html(html_code, height=650)
+                
+                # Render "Completato"
+                if st.button(f"TERMINA E SALVA", use_container_width=True, type="primary"):
+                    oggi = datetime.now().strftime("%Y-%m-%d")
+                    esercizi_str = " | ".join(opt["esercizi_formattati"])
+                    dm.registra_allenamento(
+                        data=oggi,
+                        opzione=lettera,
+                        nome_opzione=opt["nome"],
+                        esercizi=esercizi_str,
+                        tempo_minuti=tempo_sel,
+                        energia=energia_sel_val,
+                    )
+                    st.session_state["active_timer"] = None
+                    st.success(f"✅ **{opt['nome']}** registrato per oggi!")
+                    st.balloons()
+                    st.rerun()
+            else:
+                st.markdown("---")
+                st.markdown(f"**Allenamento per {tempo_sel} minuti - Energia: {energia_sel_val}**")
 
-            opzione_labels = {
-                "A": ("🔥", "Opzione A", "#e74c3c"),
-                "B": ("💪", "Opzione B", "#3498db"),
-                "C": ("🧘", "Opzione C", "#2ecc71"),
-            }
+                col_a, col_b, col_c = st.columns(3)
 
-            for col, lettera in zip([col_a, col_b, col_c], ["A", "B", "C"]):
-                with col:
-                    emoji, label, colore = opzione_labels[lettera]
-                    opt = opzioni[lettera]
+                opzione_labels = {
+                    "A": ("🔥", "Opzione A", "#e74c3c"),
+                    "B": ("💪", "Opzione B", "#3498db"),
+                    "C": ("🧘", "Opzione C", "#2ecc71"),
+                }
 
-                    st.markdown(f"#### {emoji} {label}")
-                    st.markdown(f"**{opt['nome']}**")
+                for col, lettera in zip([col_a, col_b, col_c], ["A", "B", "C"]):
+                    with col:
+                        emoji, label, colore = opzione_labels[lettera]
+                        opt = opzioni[lettera]
 
-                    # Lista esercizi in formato card
-                    for i, ex in enumerate(opt["esercizi"]):
-                        nome = ex["nome"]
-                        serie = ex.get("serie", ex["serie_default"])
-                        if ex.get("reps") is not None:
-                            volume = f"{serie}×{ex['reps']}"
-                        elif ex.get("durata") is not None:
-                            volume = f"{serie}×{ex['durata']}s"
-                        else:
-                            volume = "-"
+                        # Costruiamo la card HTML stile Dribbble
+                        card_html = f'''<div class="workout-card">
+<div class="workout-card-header">
+<div class="icon">{emoji}</div>
+<div class="title-area">
+<h3>{opt['nome']}</h3>
+<div class="workouts-count">{len(opt['esercizi'])} WORKOUTS</div>
+</div>
+<div class="arrow">→</div>
+</div>
+'''
 
-                        st.markdown(
-                            f'<div class="exercise-item">'
-                            f'<span class="exercise-name">{nome}</span>'
-                            f'<span class="exercise-volume">{volume}</span>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
+                        for ex in opt["esercizi"]:
+                            nome = ex["nome"]
+                            serie = ex.get("serie", ex["serie_default"])
+                            if ex.get("reps") is not None:
+                                volume = f"{serie}×{ex['reps']}"
+                            elif ex.get("durata") is not None:
+                                volume = f"{serie}×{ex['durata']}s"
+                            else:
+                                volume = "-"
 
-                    st.markdown("")  # Spacer
+                            card_html += f'''<div class="exercise-item">
+<span class="exercise-name">{nome}</span>
+<span class="exercise-volume">{volume}</span>
+</div>
+'''
 
-                    # Pulsante completamento
-                    btn_key = f"completa_{lettera}_{tempo_sel}_{energia_sel_val}"
-                    if st.button(
-                        f"✅ Segna come Completato",
-                        key=btn_key,
-                        use_container_width=True,
-                    ):
-                        oggi = datetime.now().strftime("%Y-%m-%d")
-                        esercizi_str = " | ".join(opt["esercizi_formattati"])
-                        dm.registra_allenamento(
-                            data=oggi,
-                            opzione=lettera,
-                            nome_opzione=opt["nome"],
-                            esercizi=esercizi_str,
-                            tempo_minuti=tempo_sel,
-                            energia=energia_sel_val,
-                        )
-                        st.success(f"✅ **{opt['nome']}** registrato per oggi!")
-                        st.balloons()
+                        card_html += '</div>'
+                        
+                        st.markdown(card_html, unsafe_allow_html=True)
+
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            if st.button("AVVIA TIMER", key=f"avvia_{lettera}_{tempo_sel}_{energia_sel_val}", use_container_width=True, type="primary"):
+                                st.session_state["active_timer"] = lettera
+                                st.rerun()
+                        with col_btn2:
+                            # Pulsante completamento
+                            btn_key = f"completa_{lettera}_{tempo_sel}_{energia_sel_val}"
+                            if st.button("FATTO", key=btn_key, use_container_width=True, type="secondary"):
+                                oggi = datetime.now().strftime("%Y-%m-%d")
+                                esercizi_str = " | ".join(opt["esercizi_formattati"])
+                                dm.registra_allenamento(
+                                    data=oggi,
+                                    opzione=lettera,
+                                    nome_opzione=opt["nome"],
+                                    esercizi=esercizi_str,
+                                    tempo_minuti=tempo_sel,
+                                    energia=energia_sel_val,
+                                )
+                                st.success(f"✅ **{opt['nome']}** registrato per oggi!")
+                                st.balloons()
 
 
 # =============================================================================
@@ -591,7 +735,7 @@ with tab3:
         allenamenti_recenti = dm.allenamenti_ultimi_7_giorni()
 
         if allenamenti_recenti.empty:
-            st.info("📭 Nessun allenamento registrato negli ultimi 7 giorni.")
+            st.warning("⚠️ **Non ci sono ancora allenamenti registrati.** Inizia ad allenarti per vedere i tuoi progressi!")
         else:
             for _, row in allenamenti_recenti.iterrows():
                 opz_emoji = {"A": "🔥", "B": "💪", "C": "🧘"}.get(row["opzione"], "📋")
@@ -600,3 +744,82 @@ with tab3:
                     f"({row['nome_opzione']}) - {row['tempo_minuti']} min - "
                     f"Energia: {row['energia']}"
                 )
+                
+        # --- Registro Corse GPS ---
+        st.markdown("---")
+        st.markdown("#### 🏃‍♂️ Corse Registrate (GPS)")
+        corse = dm.carica_corse()
+        if not corse:
+            st.info("Nessuna corsa registrata con il GPS.")
+        else:
+            for corsa in reversed(corse[-5:]): # Mostriamo solo le ultime 5
+                # Formatta la data dal formato ISO
+                try:
+                    dt = pd.to_datetime(corsa['data']).strftime("%d %b %Y - %H:%M")
+                except:
+                    dt = corsa['data']
+                    
+                st.markdown(f"**{dt}** — 🛣️ {corsa['distanza']} km | ⏱️ {corsa['pace']} min/km | 🔥 {corsa['kcal']} kcal")
+                
+                path = corsa.get('gps_path', [])
+                if path and len(path) > 1:
+                    path_data = [{"path": path}]
+                    layer = pdk.Layer(
+                        "PathLayer",
+                        data=path_data,
+                        get_path="path",
+                        get_color=[126, 242, 213, 255], # Neon mint green come Dribbble
+                        width_scale=20,
+                        width_min_pixels=6,
+                        get_width=5,
+                    )
+                    # Centra la mappa sul punto medio approssimativo
+                    mid_idx = len(path) // 2
+                    center_lon, center_lat = path[mid_idx]
+                    
+                    view_state = pdk.ViewState(
+                        longitude=center_lon,
+                        latitude=center_lat,
+                        zoom=14.5,
+                        pitch=50, # Inclinazione 3D cinematica
+                        bearing=0
+                    )
+                    
+                    st.pydeck_chart(pdk.Deck(
+                        layers=[layer],
+                        initial_view_state=view_state,
+                        map_style="mapbox://styles/mapbox/dark-v10",
+                    ))
+
+
+# =============================================================================
+# TAB 4: CORSA LIVE (GPS)
+# =============================================================================
+
+with tab4:
+    profilo = dm.carica_profilo()
+    
+    if not profilo:
+        st.warning("⚠️ **Profilo non configurato!** Vai nella scheda '👤 Il Tuo Profilo' per inserire i tuoi dati, così potremo calcolare le calorie.")
+    else:
+        peso_utente = profilo.get("peso", 70)
+        
+        st.markdown("### 🏃‍♂️ Traccia la tua Corsa (GPS)")
+        st.markdown("Questa dashboard usa il GPS del tuo dispositivo per calcolare distanza, tempo e passo reale. Al termine, clicca su 'Fine Corsa e Salva'.")
+        
+        run_data = render_run_tracker(peso_utente)
+        
+        if run_data is not None:
+            # run_data è il dizionario restituito dal componente JS
+            dm.registra_corsa(
+                distanza=float(run_data.get("distance", 0)),
+                tempo_sec=int(run_data.get("time_sec", 0)),
+                pace=run_data.get("pace", "0:00"),
+                passi=int(run_data.get("steps", 0)),
+                kcal=int(run_data.get("kcal", 0)),
+                gps_path=run_data.get("path", [])
+            )
+            st.success("✅ **Corsa salvata con successo!** Vai nella scheda 'Diario & Progressi' per vedere la mappa del tracciato.")
+            # st.balloons()
+
+# Forza ricaricamento cache
