@@ -24,6 +24,7 @@ DATA_DIR = _BASE_DIR / "data"
 PROFILO_PATH = DATA_DIR / "profilo_utente.json"
 REGISTRO_PATH = DATA_DIR / "registro_giornaliero.csv"
 STORICO_PESO_PATH = DATA_DIR / "storico_peso.csv"
+CORSE_PATH = DATA_DIR / "corse_registrate.json"
 
 # Colonne dei CSV
 REGISTRO_COLUMNS = ["data", "opzione", "nome_opzione", "esercizi", "tempo_minuti", "energia"]
@@ -222,3 +223,59 @@ def variazione_peso() -> tuple:
     peso_precedente = float(df.iloc[-2]["peso"])
     delta = round(peso_attuale - peso_precedente, 1)
     return (peso_attuale, peso_precedente, delta)
+
+
+# =============================================================================
+# REGISTRO CORSE (GPS)
+# =============================================================================
+
+def registra_corsa(distanza: float, tempo_sec: int, pace: str, passi: int, kcal: int, gps_path: list) -> None:
+    """Registra una corsa nel database JSON.
+    
+    Args:
+        distanza: KM percorsi.
+        tempo_sec: Durata in secondi.
+        pace: Passo in min/km.
+        passi: Passi totali stimati.
+        kcal: Calorie bruciate.
+        gps_path: Lista di coordinate [[lon, lat], [lon, lat], ...].
+    """
+    _assicura_directory()
+    
+    nuova_corsa = {
+        "data": datetime.now().isoformat(),
+        "distanza": distanza,
+        "tempo_sec": tempo_sec,
+        "pace": pace,
+        "passi": passi,
+        "kcal": kcal,
+        "gps_path": gps_path
+    }
+    
+    corse = []
+    if CORSE_PATH.exists():
+        try:
+            with open(CORSE_PATH, "r", encoding="utf-8") as f:
+                corse = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            corse = []
+            
+    corse.append(nuova_corsa)
+    
+    with open(CORSE_PATH, "w", encoding="utf-8") as f:
+        json.dump(corse, f, ensure_ascii=False, indent=2)
+
+
+def carica_corse() -> list:
+    """Carica tutte le corse registrate dal database JSON.
+    
+    Returns:
+        Lista di dizionari con i dati delle corse.
+    """
+    if not CORSE_PATH.exists():
+        return []
+    try:
+        with open(CORSE_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
