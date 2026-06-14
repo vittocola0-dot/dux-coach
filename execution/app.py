@@ -30,7 +30,7 @@ from run_tracker_component import render_run_tracker
 from timer_component import get_timer_html
 
 # =============================================================================
-# CONFIGURAZIONE PAGINA
+# CONFIGURAZIONE PAGINA E SESSION STATE
 # =============================================================================
 
 st.set_page_config(
@@ -39,6 +39,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+
+if 'tracker_key' not in st.session_state:
+    st.session_state.tracker_key = 0
+
+if 'show_run_success' not in st.session_state:
+    st.session_state.show_run_success = False
 
 # =============================================================================
 # STILE CSS PERSONALIZZATO
@@ -807,7 +813,7 @@ with tab4:
         st.markdown("### 🏃‍♂️ Traccia la tua Corsa (GPS)")
         st.markdown("Questa dashboard usa il GPS del tuo dispositivo per calcolare distanza, tempo e passo reale. Al termine, clicca su 'Fine Corsa e Salva'.")
         
-        run_data = render_run_tracker(peso_utente)
+        run_data = render_run_tracker(peso_utente, key=f"tracker_{st.session_state.tracker_key}")
         
         if run_data is not None:
             # run_data è il dizionario restituito dal componente JS
@@ -819,7 +825,15 @@ with tab4:
                 kcal=int(run_data.get("kcal", 0)),
                 gps_path=run_data.get("path", [])
             )
+            
+            # Attiva il messaggio di successo e resetta il tracker
+            st.session_state.show_run_success = True
+            st.session_state.tracker_key += 1
+            st.rerun()
+
+        if st.session_state.show_run_success:
             st.success("✅ **Corsa salvata con successo!** Vai nella scheda 'Diario & Progressi' per vedere la mappa del tracciato.")
-            # st.balloons()
+            # Resettiamo il flag così il messaggio non riappare al prossimo giro
+            st.session_state.show_run_success = False
 
 # Forza ricaricamento cache
